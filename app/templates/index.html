@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Repo Risk Analyzer</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#1a1a1a}
+input{padding:.5rem;width:60%}button{padding:.5rem 1rem}
+.score{font-size:2.5rem;font-weight:700}.low{color:#2e7d32}.medium{color:#b26a00}.high{color:#d84315}.critical{color:#b71c1c}
+table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #ddd;padding:.4rem;text-align:left;vertical-align:top}
+.err{color:#b71c1c}.muted{color:#666;font-size:.9rem}code{background:#f3f3f3;padding:0 .2rem}
+</style></head><body>
+<h1>Repo Risk Analyzer</h1>
+<p class="muted">Explainable risk score from real GitHub data and OSV.dev advisories.</p>
+<input id="repo" placeholder="owner/name or https://github.com/owner/name" value="pallets/flask">
+<button id="go">Analyze</button>
+<div id="out"></div>
+<h3>Recent analyses</h3><table id="hist"></table>
+<script>
+const out=document.getElementById('out');
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+async function run(){
+  out.replaceChildren(el('p','muted','Analyzing...'));
+  const r=await fetch('/api/analyze?repo='+encodeURIComponent(document.getElementById('repo').value));
+  const d=await r.json();
+  if(!r.ok){out.replaceChildren(el('p','err',d.error));return}
+  const k=d.risk, box=el('div');
+  box.append(el('h2',null,d.repo));
+  box.append(el('div','score '+k.level,k.score+' / 100 ('+k.level+')'));
+  box.append(el('p','muted','Dependencies: '+d.dependencies.total+' total, '+d.dependencies.pinned+' pinned. Vulnerability source: '+d.vulnerability_source));
+  const t=el('table'),h=el('tr');['Factor','Points','Why','Evidence'].forEach(x=>h.append(el('th',null,x)));t.append(h);
+  k.factors.forEach(f=>{const tr=el('tr');
+    tr.append(el('td',null,f.name+(f.known?'':' (unknown)')),el('td',null,f.points+' / '+f.max_points),el('td',null,f.reason),el('td',null,f.evidence.join('\n')));
+    tr.lastChild.style.whiteSpace='pre-wrap';t.append(tr)});
+  box.append(t);out.replaceChildren(box);load();
+}
+async function load(){
+  const d=await (await fetch('/api/history')).json(),t=document.getElementById('hist');t.replaceChildren();
+  d.forEach(x=>{const tr=el('tr');tr.append(el('td',null,x.repo),el('td',null,x.score+' ('+x.level+')'),el('td',null,x.analyzed_at));t.append(tr)});
+}
+document.getElementById('go').onclick=run;load();
+</script></body></html>
